@@ -1,0 +1,171 @@
+
+data = '9:1, 1; 9:3, 2; 8:2, 5; 7:3, 9; 6:4, 4; 5:5, 8; 4:6, 3; 3:7, 7; 2:8, 2; 1:9, 6'
+#data = input("Enter data in the format 'row:column, value;': ")
+data = data.split(";")
+sudoku = [[0 for i in range(9)] for j in range(9)]
+for item in data:
+    item = item.strip()
+    if item:
+        row_col, value = item.split(",")
+        row, col = map(int, row_col.split(":"))
+        value = int(value)
+        if 0 < row < 10 and 0 < col < 10 and 0 < value < 10:
+            sudoku[row-1][col-1] = value
+
+
+def is_valid(sudoku, row, col, value):
+    # Check row
+    if value in sudoku[row]:
+        return False
+    # Check column
+    if value in [sudoku[i][col] for i in range(9)]:
+        return False
+    # Check 3x3 square
+    row_start = (row // 3) * 3
+    col_start = (col // 3) * 3
+    for i in range(row_start, row_start + 3):
+        for j in range(col_start, col_start + 3):
+            if sudoku[i][j] == value:
+                return False
+    return True
+
+
+def check_diagonal(sudoku, row, col, value, possible_values):
+    # Check positive diagonal
+    diagonal = [sudoku[i][j] for i in range(9) for j in range(9) if i + j == row + col]
+    if value in diagonal:
+        return False
+    # Check diagonally adjacent digits along positive diagonal
+    for i in [-1, 1]:
+        row_adj = row + i
+        col_adj = col - i
+        if 0 <= row_adj < 9 and 0 <= col_adj < 9:
+            if sudoku[row_adj][col_adj] != 0:
+                if abs(sudoku[row_adj][col_adj] - value) < 4:
+                    return False
+            else:
+                possible_values_adj = possible_values[row_adj][col_adj]
+                if any(abs(v - value) < 4 for v in possible_values_adj):
+                    return False
+    return True
+
+def solve(sudoku, possible_values):
+    min_possible_values = float("inf")
+    min_row = -1
+    min_col = -1
+    for row in range(9):
+        for col in range(9):
+            if sudoku[row][col] == 0:
+                num_possible_values = len(possible_values[row][col])
+                if num_possible_values < min_possible_values:
+                    min_possible_values = num_possible_values
+                    min_row = row
+                    min_col = col
+
+    if min_row == -1 and min_col == -1:
+        return True
+
+    row = min_row
+    col = min_col
+
+    for value in possible_values[row][col]:
+        if is_valid(sudoku, row, col, value) and check_diagonal(sudoku, row, col, value, possible_values):
+            sudoku[row][col] = value
+            update_possible_values(sudoku, possible_values, row, col)
+            if solve(sudoku, possible_values):
+                return True
+            else:
+                sudoku[row][col] = 0
+                reset_possible_values(sudoku, possible_values, row, col)
+    return False
+
+
+def update_possible_values(sudoku, possible_values, row_changed, col_changed):
+    value = sudoku[row_changed][col_changed]
+    # Update row
+    for col in range(9):
+        if col != col_changed:
+            possible_values[row_changed][col].discard(value)
+    # Update column
+    for row in range(9):
+        if row != row_changed:
+            possible_values[row][col_changed].discard(value)
+    # Update 3x3 square
+    row_start = (row_changed // 3) * 3
+    col_start = (col_changed // 3) * 3
+    for row in range(row_start, row_start + 3):
+        for col in range(col_start, col_start + 3):
+            if row != row_changed or col != col_changed:
+                possible_values[row][col].discard(value)
+    # Update positive diagonal
+    diagonal = [(i,j) for i in range(9) for j in range(9) if i + j == row_changed + col_changed]
+    for (row,col) in diagonal:
+        if row != row_changed or col != col_changed:
+            possible_values[row][col].discard(value)
+    # Update diagonally adjacent digits along positive diagonal
+    for i in [-1, 1]:
+        row_adj = row_changed + i
+        col_adj = col_changed - i
+        if 0 <= row_adj < 9 and 0 <= col_adj < 9:
+            possible_values[row_adj][col_adj] -= {value-3,value-2,value-1,value+1,value+2,value+3}
+
+
+def reset_possible_values(sudoku, possible_values, row_changed, col_changed):
+    value = sudoku[row_changed][col_changed]
+    # Reset row
+    for col in range(9):
+        if col != col_changed:
+            if is_valid(sudoku, row_changed, col, value) and check_diagonal(sudoku, row_changed, col, value, possible_values):
+                possible_values[row_changed][col].add(value)
+    # Reset column
+    for row in range(9):
+        if row != row_changed:
+            if is_valid(sudoku, row, col_changed, value) and check_diagonal(sudoku, row, col_changed, value, possible_values):
+                possible_values[row][col_changed].add(value)
+    # Reset 3x3 square
+    row_start = (row_changed // 3) * 3
+    col_start = (col_changed // 3) * 3
+    for row in range(row_start, row_start + 3):
+        for col in range(col_start, col_start + 3):
+            if row != row_changed or col != col_changed:
+                if is_valid(sudoku, row, col, value) and check_diagonal(sudoku, row, col, value, possible_values):
+                    possible_values[row][col].add(value)
+    # Reset positive diagonal
+    diagonal = [(i,j) for i in range(9) for j in range(9) if i + j == row_changed + col_changed]
+    for (row,col) in diagonal:
+        if row != row_changed or col != col_changed:
+            if is_valid(sudoku,row,col,value) and check_diagonal(sudoku,row,col,value,possible_values):
+                possible_values[row][col].add(value)
+    # Reset diagonally adjacent digits along positive diagonal
+    for i in [-1, 1]:
+        row_adj = row_changed + i
+        col_adj = col_changed - i
+        if 0 <= row_adj < 9 and 0 <= col_adj < 9:
+            if is_valid(sudoku,row_adj,col_adj,value) and check_diagonal(sudoku,row_adj,col_adj,value,possible_values):
+                possible_values[row_adj][col_adj].add(value)
+
+
+def init_possible_values(sudoku):
+    possible_values = [[set(range(1,10)) for j in range(9)] for i in range(9)]
+    for row in range(9):
+        for col in range(9):
+            if sudoku[row][col] != 0:
+                update_possible_values(sudoku, possible_values,row,col)
+    return possible_values
+
+possible_values = init_possible_values(sudoku)
+
+for row in sudoku:
+        print(row)
+
+print()
+
+if solve(sudoku,possible_values):
+    for row in sudoku:
+        print(row)
+else:
+    print("No solution found")
+
+
+
+        
